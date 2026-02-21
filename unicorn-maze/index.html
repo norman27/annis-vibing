@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
   <title>Unicorn Maze — Evade the Lasers</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
@@ -42,6 +43,24 @@
       display: flex;
       align-items: center;
       gap: 1.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    @media (max-width: 700px) {
+      .game-wrapper {
+        flex-direction: column;
+        gap: 1rem;
+      }
+      h1 { font-size: 1.5rem; }
+      .subtitle { font-size: 0.85rem; }
+    }
+
+    .controls.keyboard-hint { display: block; }
+    .controls.touch-hint { display: none; }
+    @media (pointer: coarse) {
+      .controls.keyboard-hint { display: none; }
+      .controls.touch-hint { display: block; }
     }
 
     #game-container {
@@ -53,6 +72,8 @@
         0 0 0 2px rgba(255, 182, 193, 0.3),
         0 0 40px rgba(138, 43, 226, 0.3),
         inset 0 0 60px rgba(0, 0, 0, 0.5);
+      max-width: 100%;
+      touch-action: none;
     }
 
     .laser-speed-panel {
@@ -116,6 +137,8 @@
       background: #0d0618;
       image-rendering: pixelated;
       image-rendering: crisp-edges;
+      max-width: 100%;
+      height: auto;
     }
 
     .controls {
@@ -183,6 +206,45 @@
       background: rgba(255, 255, 255, 0.3);
       transform: scale(1.05);
     }
+
+    /* On-screen D-pad for touch devices */
+    .dpad {
+      display: none;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: 1fr 1fr 1fr;
+      gap: 4px;
+      width: 140px;
+      height: 140px;
+      margin-top: 0.75rem;
+      touch-action: none;
+    }
+    .dpad button {
+      background: rgba(255, 182, 193, 0.25);
+      border: 2px solid rgba(255, 182, 193, 0.5);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 1.5rem;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      min-width: 44px;
+      min-height: 44px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .dpad button:active {
+      background: rgba(255, 182, 225, 0.5);
+      transform: scale(0.95);
+    }
+    .dpad .up   { grid-column: 2; grid-row: 1; }
+    .dpad .down { grid-column: 2; grid-row: 3; }
+    .dpad .left { grid-column: 1; grid-row: 2; }
+    .dpad .right{ grid-column: 3; grid-row: 2; }
+    @media (pointer: coarse) {
+      .dpad { display: grid; }
+    }
   </style>
 </head>
 <body>
@@ -191,7 +253,7 @@
 
   <div class="game-wrapper">
     <div id="game-container">
-      <canvas id="game-canvas" width="640" height="480"></canvas>
+      <canvas id="game-canvas" width="640" height="410"></canvas>
       <div id="message">
         <span class="text"></span>
         <button class="restart-btn">Play again</button>
@@ -207,7 +269,13 @@
     </div>
   </div>
 
-  <p class="controls">Use <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> to move</p>
+  <p class="controls keyboard-hint">Use <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> to move</p>
+  <div class="dpad" aria-label="Movement controls">
+    <button type="button" class="up" aria-label="Up">↑</button>
+    <button type="button" class="down" aria-label="Down">↓</button>
+    <button type="button" class="left" aria-label="Left">←</button>
+    <button type="button" class="right" aria-label="Right">→</button>
+  </div>
 
   <script>
     (function () {
@@ -509,6 +577,33 @@
       });
 
       restartBtn.addEventListener('click', reset);
+
+      // D-pad for touch devices
+      const dpadUp = document.querySelector('.dpad .up');
+      const dpadDown = document.querySelector('.dpad .down');
+      const dpadLeft = document.querySelector('.dpad .left');
+      const dpadRight = document.querySelector('.dpad .right');
+      if (dpadUp) {
+        dpadUp.addEventListener('click', () => tryMove(0, -1));
+        dpadUp.addEventListener('touchstart', (e) => { e.preventDefault(); tryMove(0, -1); }, { passive: false });
+      }
+      if (dpadDown) {
+        dpadDown.addEventListener('click', () => tryMove(0, 1));
+        dpadDown.addEventListener('touchstart', (e) => { e.preventDefault(); tryMove(0, 1); }, { passive: false });
+      }
+      if (dpadLeft) {
+        dpadLeft.addEventListener('click', () => tryMove(-1, 0));
+        dpadLeft.addEventListener('touchstart', (e) => { e.preventDefault(); tryMove(-1, 0); }, { passive: false });
+      }
+      if (dpadRight) {
+        dpadRight.addEventListener('click', () => tryMove(1, 0));
+        dpadRight.addEventListener('touchstart', (e) => { e.preventDefault(); tryMove(1, 0); }, { passive: false });
+      }
+
+      // Prevent pull-to-refresh and double-tap zoom on game area
+      document.getElementById('game-container').addEventListener('touchmove', (e) => {
+        if (e.target.closest('#game-canvas')) e.preventDefault();
+      }, { passive: false });
 
       reset();
     })();
