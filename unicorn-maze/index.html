@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unicorn Maze — Evade the Lasers</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 50%, #1a0a2e 100%);
+      font-family: 'Fredoka', sans-serif;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      text-shadow: 0 0 20px rgba(255, 182, 193, 0.5);
+      letter-spacing: 2px;
+    }
+
+    .subtitle {
+      font-size: 0.95rem;
+      opacity: 0.9;
+      margin-bottom: 1rem;
+    }
+
+    .game-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    #game-container {
+      position: relative;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 12px;
+      padding: 8px;
+      box-shadow:
+        0 0 0 2px rgba(255, 182, 193, 0.3),
+        0 0 40px rgba(138, 43, 226, 0.3),
+        inset 0 0 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .laser-speed-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1rem;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 182, 193, 0.2);
+    }
+
+    .laser-speed-panel label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .laser-speed-panel input[type="range"] {
+      width: 120px;
+      height: 8px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: linear-gradient(to top, #4a2c7a, #ff69b4);
+      border-radius: 4px;
+      outline: none;
+    }
+
+    .laser-speed-panel input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #ffb6e1;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(255, 182, 225, 0.6);
+    }
+
+    .laser-speed-panel input[type="range"]::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #ffb6e1;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 0 8px rgba(255, 182, 225, 0.6);
+    }
+
+    .laser-speed-labels {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      font-size: 0.7rem;
+      opacity: 0.9;
+    }
+
+    #game-canvas {
+      display: block;
+      border-radius: 8px;
+      background: #0d0618;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    .controls {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      opacity: 0.85;
+    }
+
+    .controls kbd {
+      background: rgba(255, 255, 255, 0.15);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: inherit;
+    }
+
+    #message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.5rem;
+      font-weight: 600;
+      text-align: center;
+      padding: 1.5rem 2rem;
+      border-radius: 12px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 10;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+    }
+
+    #message.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #message.win {
+      background: linear-gradient(135deg, rgba(0, 255, 136, 0.3), rgba(0, 200, 100, 0.2));
+      border: 2px solid rgba(0, 255, 136, 0.6);
+      box-shadow: 0 0 30px rgba(0, 255, 136, 0.4);
+    }
+
+    #message.lose {
+      background: linear-gradient(135deg, rgba(255, 80, 80, 0.3), rgba(200, 50, 50, 0.2));
+      border: 2px solid rgba(255, 100, 100, 0.6);
+      box-shadow: 0 0 30px rgba(255, 80, 80, 0.4);
+    }
+
+    #message .restart-btn {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 0.5rem 1.5rem;
+      background: rgba(255, 255, 255, 0.2);
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 1rem;
+      transition: all 0.2s;
+    }
+
+    #message .restart-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+<body>
+  <h1>🦄 Unicorn Maze</h1>
+  <p class="subtitle">Reach the rainbow star — don't touch the lasers!</p>
+
+  <div class="game-wrapper">
+    <div id="game-container">
+      <canvas id="game-canvas" width="640" height="480"></canvas>
+      <div id="message">
+        <span class="text"></span>
+        <button class="restart-btn">Play again</button>
+      </div>
+    </div>
+    <div class="laser-speed-panel">
+      <label for="laser-speed">Laser speed</label>
+      <input type="range" id="laser-speed" min="1" max="10" value="5" step="1">
+      <div class="laser-speed-labels">
+        <span>Really slow</span>
+        <span>Really fast</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="controls">Use <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> to move</p>
+
+  <script>
+    (function () {
+      const canvas = document.getElementById('game-canvas');
+      const ctx = canvas.getContext('2d');
+      const messageEl = document.getElementById('message');
+      const messageText = messageEl.querySelector('.text');
+      const restartBtn = messageEl.querySelector('.restart-btn');
+      const laserSpeedSlider = document.getElementById('laser-speed');
+
+      // Slider 1 = really slow (long period), 10 = really fast (short period). Maps to period multiplier.
+      function getLaserPeriodMultiplier() {
+        const step = Number(laserSpeedSlider.value);
+        return 2.5 - (2.25 * (step - 1)) / 9;
+      }
+
+      const TILE = 32;
+      const COLS = Math.floor(640 / TILE);
+      const ROWS = Math.floor(480 / TILE);
+
+      // 0 = empty, 1 = wall, 2 = start, 3 = goal
+      const maze = [
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,2,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,1],
+        [1,0,1,1,0,1,0,1,1,1,1,1,1,0,1,0,1,1,0,1],
+        [1,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,1],
+        [1,1,0,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1,1],
+        [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+        [1,0,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+        [1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,0,1],
+        [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+        [1,0,1,1,1,1,1,1,0,1,0,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      ];
+
+      // Laser barriers: { x, y, horizontal, length, phase (0-1), period } — ~45% slower than original
+      const lasers = [
+        { x: 2, y: 10, horizontal: false, length: 3, phase: 0.1, period: 3.485 },  
+        { x: 3, y: 2, horizontal: true,  length: 5, phase: 0, period: 2.904 },
+        { x: 3, y: 6, horizontal: false, length: 3, phase: 0.2, period: 3.63 },
+        { x: 7, y: 4, horizontal: false, length: 3, phase: 0.3, period: 3.194 },
+        { x: 7, y: 8, horizontal: true,  length: 3, phase: 0.4, period: 2.759 },
+        { x: 9, y: 10, horizontal: false, length: 3, phase: 0.5, period: 2.468 },
+        { x: 10, y: 4, horizontal: true,  length: 3, phase: 0.7, period: 2.904 },
+        { x: 11, y: 6, horizontal: false, length: 5, phase: 0.6, period: 3.049 },
+        { x: 12, y: 2, horizontal: true, length: 3, phase: 0.5, period: 2.614 },        
+        { x: 14, y: 4, horizontal: false, length: 3, phase: 0, period: 3.34 },
+        { x: 16, y: 10, horizontal: false, length: 3, phase: 0.8, period: 3.194 },
+        
+      ];
+
+      let player = { x: 1, y: 1 };
+      let gameOver = false;
+      let won = false;
+      let lastTime = 0;
+
+      function getTile(x, y) {
+        const col = Math.floor(x / TILE);
+        const row = Math.floor(y / TILE);
+        if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return 1;
+        return maze[row] ? maze[row][col] : 1;
+      }
+
+      function cellToPixel(c) {
+        return c * TILE;
+      }
+
+      function pixelToCell(p) {
+        return Math.floor(p / TILE);
+      }
+
+      function isWall(col, row) {
+        if (row < 0 || row >= maze.length || col < 0 || col >= maze[0].length) return true;
+        return maze[row][col] === 1;
+      }
+
+      function checkLaserCollision() {
+        const t = performance.now() / 1000;
+        const cx = player.x;
+        const cy = player.y;
+
+        const periodMult = getLaserPeriodMultiplier();
+        for (const l of lasers) {
+          const on = (t / (l.period * periodMult) + l.phase) % 1 < 0.5;
+          if (!on) continue;
+
+          // Only zap when the player is standing in a cell that the laser beam actually passes through
+          if (l.horizontal) {
+            if (cy === l.y && cx >= l.x && cx < l.x + l.length) return true;
+          } else {
+            if (cx === l.x && cy >= l.y && cy < l.y + l.length) return true;
+          }
+        }
+        return false;
+      }
+
+      function drawMaze() {
+        for (let row = 0; row < maze.length; row++) {
+          for (let col = 0; col < maze[0].length; col++) {
+            const x = col * TILE;
+            const y = row * TILE;
+            if (maze[row][col] === 1) {
+              ctx.fillStyle = '#2d1b4e';
+              ctx.fillRect(x, y, TILE, TILE);
+              ctx.strokeStyle = '#4a2c7a';
+              ctx.lineWidth = 1;
+              ctx.strokeRect(x, y, TILE, TILE);
+            } else {
+              ctx.fillStyle = '#1a0a2e';
+              ctx.fillRect(x, y, TILE, TILE);
+              if (maze[row][col] === 3) {
+                ctx.font = '24px Fredoka';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('⭐', x + TILE / 2, y + TILE / 2);
+              }
+            }
+          }
+        }
+      }
+
+      function drawLasers(time) {
+        const periodMult = getLaserPeriodMultiplier();
+        for (const l of lasers) {
+          const on = (time / (l.period * periodMult) + l.phase) % 1 < 0.5;
+          const lx = cellToPixel(l.x);
+          const ly = cellToPixel(l.y);
+
+          const gradient = ctx.createLinearGradient(
+            lx, ly,
+            l.horizontal ? lx + l.length * TILE : lx,
+            l.horizontal ? ly : ly + l.length * TILE
+          );
+          gradient.addColorStop(0, 'rgba(255, 100, 150, 0.3)');
+          gradient.addColorStop(0.5, on ? 'rgba(255, 50, 100, 0.95)' : 'rgba(255, 100, 150, 0.2)');
+          gradient.addColorStop(1, 'rgba(255, 100, 150, 0.3)');
+
+          ctx.strokeStyle = gradient;
+          ctx.lineWidth = on ? 6 : 3;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          // Draw only within the cells the laser occupies (center of first cell to center of last cell)
+          if (l.horizontal) {
+            const xStart = lx + TILE / 2;
+            const xEnd = lx + (l.length - 1) * TILE + TILE / 2;
+            ctx.moveTo(xStart, ly + TILE / 2);
+            ctx.lineTo(xEnd, ly + TILE / 2);
+          } else {
+            const yStart = ly + TILE / 2;
+            const yEnd = ly + (l.length - 1) * TILE + TILE / 2;
+            ctx.moveTo(lx + TILE / 2, yStart);
+            ctx.lineTo(lx + TILE / 2, yEnd);
+          }
+          ctx.stroke();
+
+          if (on) {
+            ctx.shadowColor = 'rgba(255, 80, 120, 0.9)';
+            ctx.shadowBlur = 12;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+          }
+        }
+      }
+
+      function drawUnicorn(px, py) {
+        const cx = px + TILE / 2;
+        const cy = py + TILE / 2 - 2;
+
+        ctx.save();
+
+        // Horn (cone shape – wide base, narrow tip)        // Horn (cone shape – wide base, narrow tip)
+        const hornBaseL = { x: cx - 1, y: cy - 4 };
+        const hornBaseR = { x: cx + 11, y: cy - 10 };
+        const hornTip = { x: cx + 15, y: cy - 20 };
+        ctx.fillStyle = '#ffb6e1';
+        ctx.beginPath();
+        ctx.moveTo(hornBaseL.x, hornBaseL.y);
+        ctx.lineTo(hornTip.x, hornTip.y);
+        ctx.lineTo(hornBaseR.x, hornBaseR.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#ff69b4';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Body
+        ctx.shadowColor = 'rgba(255, 182, 255, 0.5)';
+        ctx.shadowBlur = 8;
+
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + 4, 10, 12, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Ears
+        ctx.fillStyle = '#ffb6e1';
+        ctx.beginPath();
+        ctx.ellipse(cx - 6, cy - 2, 5, 8, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx + 6, cy - 2, 5, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eyes
+        ctx.fillStyle = '#333';
+        ctx.beginPath();
+        ctx.arc(cx - 3, cy + 2, 2, 0, Math.PI * 2);
+        ctx.arc(cx + 3, cy + 2, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
+
+      function tryMove(dx, dy) {
+        if (gameOver) return;
+        const nx = player.x + dx;
+        const ny = player.y + dy;
+        if (isWall(nx, ny)) return;
+        player.x = nx;
+        player.y = ny;
+
+        if (checkLaserCollision()) {
+          gameOver = true;
+          won = false;
+          showMessage('Zapped by a laser!', 'lose');
+        } else if (maze[player.y][player.x] === 3) {
+          gameOver = true;
+          won = true;
+          showMessage('You reached the star!', 'win');
+        }
+      }
+
+      function showMessage(text, type) {
+        messageText.textContent = text;
+        messageEl.className = 'show ' + type;
+      }
+
+      function hideMessage() {
+        messageEl.classList.remove('show', 'win', 'lose');
+      }
+
+      function gameLoop(time) {
+        const dt = (time - lastTime) / 1000;
+        lastTime = time;
+
+        ctx.fillStyle = '#0d0618';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        drawMaze();
+        drawLasers(time / 1000);
+        drawUnicorn(cellToPixel(player.x), cellToPixel(player.y));
+
+        if (gameOver) {
+          return;
+        }
+        // Zap if a laser turns on while you're standing on its cell
+        if (checkLaserCollision()) {
+          gameOver = true;
+          won = false;
+          showMessage('Zapped by a laser!', 'lose');
+          return;
+        }
+        requestAnimationFrame(gameLoop);
+      }
+
+      function reset() {
+        player = { x: 1, y: 1 };
+        gameOver = false;
+        won = false;
+        hideMessage();
+        lastTime = performance.now();
+        requestAnimationFrame(gameLoop);
+      }
+
+      document.addEventListener('keydown', (e) => {
+        if (messageEl.classList.contains('show')) return;
+        e.preventDefault();
+        switch (e.key) {
+          case 'ArrowUp':
+          case 'w':
+          case 'W':
+            tryMove(0, -1);
+            break;
+          case 'ArrowDown':
+          case 's':
+          case 'S':
+            tryMove(0, 1);
+            break;
+          case 'ArrowLeft':
+          case 'a':
+          case 'A':
+            tryMove(-1, 0);
+            break;
+          case 'ArrowRight':
+          case 'd':
+          case 'D':
+            tryMove(1, 0);
+            break;
+        }
+      });
+
+      restartBtn.addEventListener('click', reset);
+
+      reset();
+    })();
+  </script>
+</body>
+</html>
