@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Score Tracker</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      background: #1a1a1e;
+      color: #e4e4e7;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+    .toolbar {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      background: #3f3f46;
+      color: #e4e4e7;
+    }
+    button:hover {
+      background: #52525b;
+    }
+    button.remove-row {
+      background: transparent;
+      color: #a1a1aa;
+      padding: 0.25rem 0.5rem;
+    }
+    button.remove-row:hover {
+      color: #f87171;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #27272a;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 0.6rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid #3f3f46;
+    }
+    th {
+      background: #3f3f46;
+      font-weight: 500;
+      font-size: 0.85rem;
+    }
+    tr:last-child td { border-bottom: none; }
+    input[type="text"],
+    input[type="number"] {
+      width: 100%;
+      padding: 0.4rem 0.5rem;
+      border: 1px solid #3f3f46;
+      border-radius: 4px;
+      background: #18181b;
+      color: #e4e4e7;
+      font-size: 0.9rem;
+    }
+    input[type="number"] {
+      width: 4rem;
+      text-align: right;
+    }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="number"] {
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
+    input:focus {
+      outline: none;
+      border-color: #71717a;
+    }
+    .col-place { width: 3rem; text-align: center; font-weight: 600; color: #a1a1aa; }
+    .col-player { min-width: 70px; width: 70px; }
+    .col-score { min-width: 6rem; width: 8%; }
+    .col-pos { width: 3rem; text-align: center; color: #a1a1aa; font-size: 0.9rem; }
+    .col-total { width: 4rem; text-align: center; font-weight: 600; }
+    .col-remove { width: 2.5rem; padding: 0.4rem; }
+  </style>
+</head>
+<body>
+  <h1>Score Tracker</h1>
+  <div class="toolbar">
+    <button type="button" id="add-row">Add row</button>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th class="col-place">Place</th>
+        <th class="col-player">Player</th>
+        <th class="col-score">🚗 Cars</th>
+        <th class="col-pos">Pos</th>
+        <th class="col-score">🦄 Unicorn</th>
+        <th class="col-pos">Pos</th>
+        <th class="col-score">🔄 Gyro</th>
+        <th class="col-pos">Pos</th>
+        <th class="col-score">🏒 Hockey</th>
+        <th class="col-total">Total</th>
+        <th class="col-pos">Pos</th>
+        <th class="col-remove"></th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <script>
+    const STORAGE_KEY = 'score-tracker-data';
+    const GAME_COUNT = 4;
+
+    const tbody = document.getElementById('rows');
+    const addRowBtn = document.getElementById('add-row');
+
+    function getState() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { rows: [{ player: '', scores: [0, 0, 0, 0] }] };
+      try {
+        const data = JSON.parse(raw);
+        if (!Array.isArray(data.rows) || data.rows.length === 0) {
+          return { rows: [{ player: '', scores: [0, 0, 0, 0] }] };
+        }
+        return data;
+      } catch {
+        return { rows: [{ player: '', scores: [0, 0, 0, 0] }] };
+      }
+    }
+
+    function saveState(state) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function createRow(index, rowData) {
+      const tr = document.createElement('tr');
+      tr.dataset.index = index;
+
+      const placeCell = document.createElement('td');
+      placeCell.className = 'col-place place-cell';
+      placeCell.textContent = rowData.place != null ? rowData.place : '—';
+      tr.appendChild(placeCell);
+
+      const playerCell = document.createElement('td');
+      const playerInput = document.createElement('input');
+      playerInput.type = 'text';
+      playerInput.placeholder = 'Player name';
+      playerInput.value = rowData.player ?? '';
+      playerInput.addEventListener('blur', persist);
+      playerCell.appendChild(playerInput);
+      tr.appendChild(playerCell);
+
+      for (let g = 0; g < GAME_COUNT; g++) {
+        const scoreCell = document.createElement('td');
+        const numInput = document.createElement('input');
+        numInput.type = 'number';
+        numInput.min = 0;
+        numInput.step = 'any';
+        numInput.value = (rowData.scores && rowData.scores[g]) ?? 0;
+        numInput.addEventListener('blur', persist);
+        scoreCell.appendChild(numInput);
+        tr.appendChild(scoreCell);
+        if (g < GAME_COUNT - 1) {
+          const posCell = document.createElement('td');
+          posCell.className = 'col-pos pos-cell';
+          posCell.dataset.game = g;
+          posCell.textContent = rowData.positions ? rowData.positions[g] : '—';
+          tr.appendChild(posCell);
+        }
+      }
+
+      const totalCell = document.createElement('td');
+      totalCell.className = 'col-total total-cell';
+      totalCell.textContent = rowData.total != null ? rowData.total : '—';
+      tr.appendChild(totalCell);
+
+      const lastPosCell = document.createElement('td');
+      lastPosCell.className = 'col-pos pos-cell';
+      lastPosCell.dataset.game = GAME_COUNT - 1;
+      lastPosCell.textContent = rowData.positions ? rowData.positions[GAME_COUNT - 1] : '—';
+      tr.appendChild(lastPosCell);
+
+      const removeCell = document.createElement('td');
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'remove-row';
+      removeBtn.textContent = '✕';
+      removeBtn.title = 'Remove row';
+      removeBtn.addEventListener('click', () => {
+        const row = removeBtn.closest('tr');
+        if (row) removeRow(row);
+      });
+      removeCell.appendChild(removeBtn);
+      tr.appendChild(removeCell);
+
+      return tr;
+    }
+
+    function collectState() {
+      const rows = [];
+      tbody.querySelectorAll('tr').forEach((tr) => {
+        const playerInput = tr.querySelector('input[type="text"]');
+        const scoreInputs = tr.querySelectorAll('input[type="number"]');
+        const scores = Array.from(scoreInputs).map((inp) => {
+          const v = parseFloat(inp.value);
+          return Number.isNaN(v) ? 0 : v;
+        });
+        rows.push({
+          player: (playerInput && playerInput.value) || '',
+          scores: scores.slice(0, GAME_COUNT),
+        });
+      });
+      return { rows };
+    }
+
+    function rankByScore(values) {
+      const order = values.map((v, i) => ({ i, v })).sort((a, b) => b.v - a.v);
+      const ranks = new Array(values.length);
+      let rank = 1;
+      for (let j = 0; j < order.length; j++) {
+        if (j > 0 && order[j].v < order[j - 1].v) rank = j + 1;
+        ranks[order[j].i] = rank;
+      }
+      return ranks;
+    }
+
+    function computePositions(rows) {
+      const enriched = rows.map((r, i) => ({ ...r, positions: [], total: 0, originalIndex: i }));
+      for (let g = 0; g < GAME_COUNT; g++) {
+        const scores = enriched.map((row) => row.scores[g] ?? 0);
+        const ranks = rankByScore(scores);
+        enriched.forEach((row, i) => { row.positions[g] = ranks[i]; });
+      }
+      enriched.forEach((row) => {
+        row.total = row.positions.reduce((s, p) => s + p, 0);
+      });
+      return enriched;
+    }
+
+    function sortByTotalAndAssignPlace(rowsWithPos) {
+      rowsWithPos.sort((a, b) => a.total - b.total);
+      let place = 1;
+      rowsWithPos.forEach((row, i) => {
+        if (i > 0 && row.total > rowsWithPos[i - 1].total) place = i + 1;
+        row.place = place;
+      });
+      return rowsWithPos;
+    }
+
+    function updatePositions() {
+      const state = collectState();
+      const rowsWithPos = computePositions(state.rows);
+      sortByTotalAndAssignPlace(rowsWithPos);
+      const trs = Array.from(tbody.querySelectorAll('tr'));
+      const reordered = rowsWithPos.map((r) => trs[r.originalIndex]);
+      reordered.forEach((tr) => tbody.appendChild(tr));
+      reordered.forEach((tr, i) => {
+        const row = rowsWithPos[i];
+        if (!row) return;
+        const placeCell = tr.querySelector('.place-cell');
+        if (placeCell) placeCell.textContent = row.place;
+        tr.querySelectorAll('.pos-cell').forEach((cell, g) => {
+          cell.textContent = row.positions[g] ?? '—';
+        });
+        const totalCell = tr.querySelector('.total-cell');
+        if (totalCell) totalCell.textContent = row.total;
+      });
+    }
+
+
+    function persist() {
+      const state = collectState();
+      saveState(state);
+      updatePositions();
+    }
+
+    function render(state) {
+      tbody.innerHTML = '';
+      const rowsWithPos = computePositions(state.rows || []);
+      sortByTotalAndAssignPlace(rowsWithPos);
+      rowsWithPos.forEach((rowData, i) => {
+        tbody.appendChild(createRow(i, rowData));
+      });
+    }
+
+    function addRow() {
+      const state = collectState();
+      state.rows.push({ player: '', scores: [0, 0, 0, 0] });
+      saveState(state);
+      render(state);
+    }
+
+    function removeRow(tr) {
+      if (!confirm('Remove this row?')) return;
+      const index = Array.from(tbody.children).indexOf(tr);
+      if (index < 0) return;
+      const state = collectState();
+      state.rows.splice(index, 1);
+      if (state.rows.length === 0) state.rows = [{ player: '', scores: [0, 0, 0, 0] }];
+      saveState(state);
+      render(state);
+    }
+
+    addRowBtn.addEventListener('click', addRow);
+
+    render(getState());
+  </script>
+</body>
+</html>
