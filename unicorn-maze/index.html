@@ -76,61 +76,6 @@
       touch-action: none;
     }
 
-    .laser-speed-panel {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 1rem;
-      background: rgba(0, 0, 0, 0.3);
-      border-radius: 12px;
-      border: 1px solid rgba(255, 182, 193, 0.2);
-    }
-
-    .laser-speed-panel label {
-      font-size: 0.85rem;
-      font-weight: 600;
-      white-space: nowrap;
-    }
-
-    .laser-speed-panel input[type="range"] {
-      width: 120px;
-      height: 8px;
-      -webkit-appearance: none;
-      appearance: none;
-      background: linear-gradient(to top, #4a2c7a, #ff69b4);
-      border-radius: 4px;
-      outline: none;
-    }
-
-    .laser-speed-panel input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: #ffb6e1;
-      cursor: pointer;
-      box-shadow: 0 0 8px rgba(255, 182, 225, 0.6);
-    }
-
-    .laser-speed-panel input[type="range"]::-moz-range-thumb {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: #ffb6e1;
-      cursor: pointer;
-      border: none;
-      box-shadow: 0 0 8px rgba(255, 182, 225, 0.6);
-    }
-
-    .laser-speed-labels {
-      display: flex;
-      justify-content: space-between;
-      width: 100%;
-      font-size: 0.7rem;
-      opacity: 0.9;
-    }
-
     #game-canvas {
       display: block;
       border-radius: 8px;
@@ -245,11 +190,72 @@
     @media (pointer: coarse) {
       .dpad { display: grid; }
     }
+
+    /* Start overlay */
+    #start-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.95);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      transition: opacity 0.3s;
+    }
+    #start-overlay.hidden {
+      pointer-events: none;
+      opacity: 0;
+    }
+    #start-overlay .start-title {
+      font-size: 1.75rem;
+      margin-bottom: 0.5rem;
+      text-shadow: 0 0 20px rgba(255, 182, 193, 0.5);
+    }
+    #start-overlay .start-subtitle {
+      font-size: 0.95rem;
+      opacity: 0.9;
+      margin-bottom: 2rem;
+    }
+    #start-overlay #start-btn {
+      padding: 0.75rem 2.5rem;
+      font-size: 1.25rem;
+      font-family: 'Fredoka', sans-serif;
+      font-weight: 600;
+      color: #1a0a2e;
+      background: linear-gradient(135deg, #ffb6e1, #ff69b4);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 0 20px rgba(255, 105, 180, 0.5);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    #start-overlay #start-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 30px rgba(255, 105, 180, 0.7);
+    }
+
+    .timer-display {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      min-height: 1.5em;
+    }
+    .timer-display.inactive {
+      opacity: 0.5;
+    }
   </style>
 </head>
 <body>
+  <div id="start-overlay">
+    <p class="start-title">🦄 Unicorn Maze</p>
+    <p class="start-subtitle">Reach the star — don't touch the lasers!</p>
+    <button type="button" id="start-btn">Start</button>
+  </div>
+
   <h1>🦄 Unicorn Maze</h1>
   <p class="subtitle">Reach the rainbow star — don't touch the lasers!</p>
+  <p class="timer-display inactive" id="timer-display" aria-live="polite">Time: 0:00</p>
 
   <div class="game-wrapper">
     <div id="game-container">
@@ -257,14 +263,6 @@
       <div id="message">
         <span class="text"></span>
         <button class="restart-btn">Play again</button>
-      </div>
-    </div>
-    <div class="laser-speed-panel">
-      <label for="laser-speed">Laser speed</label>
-      <input type="range" id="laser-speed" min="1" max="10" value="5" step="1">
-      <div class="laser-speed-labels">
-        <span>Really slow</span>
-        <span>Really fast</span>
       </div>
     </div>
   </div>
@@ -284,12 +282,14 @@
       const messageEl = document.getElementById('message');
       const messageText = messageEl.querySelector('.text');
       const restartBtn = messageEl.querySelector('.restart-btn');
-      const laserSpeedSlider = document.getElementById('laser-speed');
+      const startOverlay = document.getElementById('start-overlay');
+      const startBtn = document.getElementById('start-btn');
+      const timerDisplay = document.getElementById('timer-display');
 
-      // Slider 1 = really slow (long period), 10 = really fast (short period). Maps to period multiplier.
+      // Laser speed fixed at 6 (same formula as former slider: 1 = slow, 10 = fast).
+      const LASER_SPEED = 6;
       function getLaserPeriodMultiplier() {
-        const step = Number(laserSpeedSlider.value);
-        return 2.5 - (2.25 * (step - 1)) / 9;
+        return 2.5 - (2.25 * (LASER_SPEED - 1)) / 9;
       }
 
       const TILE = 32;
@@ -333,6 +333,10 @@
       let gameOver = false;
       let won = false;
       let lastTime = 0;
+      let gameStarted = false;
+      let timerStartTime = 0;
+      let timerStopped = false;
+      let elapsedWhenStopped = 0;
 
       function getTile(x, y) {
         const col = Math.floor(x / TILE);
@@ -489,7 +493,26 @@
         ctx.restore();
       }
 
+      function formatTime(seconds) {
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        const ms = Math.floor((seconds % 1) * 1000);
+        return m + ':' + (s < 10 ? '0' : '') + s + '.' + String(ms).padStart(3, '0');
+      }
+
+      function updateTimerDisplay() {
+        if (timerStopped) {
+          timerDisplay.textContent = 'Time: ' + formatTime(elapsedWhenStopped);
+          return;
+        }
+        if (gameStarted && timerStartTime) {
+          const elapsed = (performance.now() - timerStartTime) / 1000;
+          timerDisplay.textContent = 'Time: ' + formatTime(elapsed);
+        }
+      }
+
       function tryMove(dx, dy) {
+        if (!gameStarted) return;
         if (gameOver) return;
         const nx = player.x + dx;
         const ny = player.y + dy;
@@ -498,13 +521,14 @@
         player.y = ny;
 
         if (checkLaserCollision()) {
-          gameOver = true;
-          won = false;
-          showMessage('Zapped by a laser!', 'lose');
+          player.x = 1;
+          player.y = 1;
         } else if (maze[player.y][player.x] === 3) {
           gameOver = true;
           won = true;
-          showMessage('You reached the star!', 'win');
+          timerStopped = true;
+          elapsedWhenStopped = (performance.now() - timerStartTime) / 1000;
+          showMessage('You reached the star! Time: ' + formatTime(elapsedWhenStopped), 'win');
         }
       }
 
@@ -530,12 +554,11 @@
         if (gameOver) {
           return;
         }
-        // Zap if a laser turns on while you're standing on its cell
+        updateTimerDisplay();
+        // Zap if a laser turns on while you're standing on its cell — respawn at start, timer keeps running
         if (checkLaserCollision()) {
-          gameOver = true;
-          won = false;
-          showMessage('Zapped by a laser!', 'lose');
-          return;
+          player.x = 1;
+          player.y = 1;
         }
         requestAnimationFrame(gameLoop);
       }
@@ -544,12 +567,27 @@
         player = { x: 1, y: 1 };
         gameOver = false;
         won = false;
+        gameStarted = false;
+        timerStopped = false;
+        timerStartTime = 0;
+        elapsedWhenStopped = 0;
         hideMessage();
+        startOverlay.classList.remove('hidden');
+        timerDisplay.textContent = 'Time: 0:00.000';
+        timerDisplay.classList.add('inactive');
         lastTime = performance.now();
         requestAnimationFrame(gameLoop);
       }
 
+      startBtn.addEventListener('click', () => {
+        startOverlay.classList.add('hidden');
+        gameStarted = true;
+        timerStartTime = performance.now();
+        timerDisplay.classList.remove('inactive');
+      });
+
       document.addEventListener('keydown', (e) => {
+        if (!gameStarted) return;
         if (messageEl.classList.contains('show')) return;
         e.preventDefault();
         switch (e.key) {
