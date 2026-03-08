@@ -91,14 +91,14 @@
     }
     .col-place { width: 3rem; text-align: center; font-weight: 600; color: #a1a1aa; }
     .col-player { min-width: 70px; width: 70px; }
-    .col-score { min-width: 6rem; width: 8%; }
-    .col-pos { width: 3rem; text-align: center; color: #a1a1aa; font-size: 0.9rem; }
-    .col-total { width: 4rem; text-align: center; font-weight: 600; }
+    .col-score { min-width: 6rem; width: 8%; padding-right: 0.25rem; }
+    .col-pos { width: 3rem; text-align: center; color: #a1a1aa; font-size: 0.9rem; padding-left: 0.25rem; }
+    .col-total { width: 4rem; text-align: center; font-weight: 600; padding-left: 0.5rem; }
     .col-remove { width: 2.5rem; padding: 0.4rem; }
   </style>
 </head>
 <body>
-  <h1>Score Tracker</h1>
+  <h1>Chaoten Olympiade 5.5 - Score Tracker</h1>
   <div class="toolbar">
     <button type="button" id="add-row">Add row</button>
   </div>
@@ -114,6 +114,7 @@
         <th class="col-score">🔄 Gyro</th>
         <th class="col-pos">Pos</th>
         <th class="col-score">🏒 Hockey</th>
+        <th class="col-pos">Pos</th>
         <th class="col-total">Total</th>
         <th class="col-pos">Pos</th>
         <th class="col-remove"></th>
@@ -125,21 +126,22 @@
   <script>
     const STORAGE_KEY = 'score-tracker-data';
     const GAME_COUNT = 4;
+    const LOWER_IS_BETTER = [true, true, false, true];
 
     const tbody = document.getElementById('rows');
     const addRowBtn = document.getElementById('add-row');
 
     function getState() {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return { rows: [{ player: '', scores: [0, 0, 0, 0] }] };
+      if (!raw) return { rows: [{ player: '', scores: ['', '', '', ''] }] };
       try {
         const data = JSON.parse(raw);
         if (!Array.isArray(data.rows) || data.rows.length === 0) {
-          return { rows: [{ player: '', scores: [0, 0, 0, 0] }] };
+          return { rows: [{ player: '', scores: ['', '', '', ''] }] };
         }
         return data;
       } catch {
-        return { rows: [{ player: '', scores: [0, 0, 0, 0] }] };
+        return { rows: [{ player: '', scores: ['', '', '', ''] }] };
       }
     }
 
@@ -167,21 +169,21 @@
 
       for (let g = 0; g < GAME_COUNT; g++) {
         const scoreCell = document.createElement('td');
+        scoreCell.className = 'col-score';
         const numInput = document.createElement('input');
         numInput.type = 'number';
         numInput.min = 0;
         numInput.step = 'any';
-        numInput.value = (rowData.scores && rowData.scores[g]) ?? 0;
+        const scoreVal = rowData.scores && rowData.scores[g];
+        numInput.value = (scoreVal === '' || scoreVal === undefined || scoreVal === null) ? '' : scoreVal;
         numInput.addEventListener('blur', persist);
         scoreCell.appendChild(numInput);
         tr.appendChild(scoreCell);
-        if (g < GAME_COUNT - 1) {
-          const posCell = document.createElement('td');
-          posCell.className = 'col-pos pos-cell';
-          posCell.dataset.game = g;
-          posCell.textContent = rowData.positions ? rowData.positions[g] : '—';
-          tr.appendChild(posCell);
-        }
+        const posCell = document.createElement('td');
+        posCell.className = 'col-pos pos-cell';
+        posCell.dataset.game = g;
+        posCell.textContent = rowData.positions ? rowData.positions[g] : '—';
+        tr.appendChild(posCell);
       }
 
       const totalCell = document.createElement('td');
@@ -189,11 +191,10 @@
       totalCell.textContent = rowData.total != null ? rowData.total : '—';
       tr.appendChild(totalCell);
 
-      const lastPosCell = document.createElement('td');
-      lastPosCell.className = 'col-pos pos-cell';
-      lastPosCell.dataset.game = GAME_COUNT - 1;
-      lastPosCell.textContent = rowData.positions ? rowData.positions[GAME_COUNT - 1] : '—';
-      tr.appendChild(lastPosCell);
+      const finalPosCell = document.createElement('td');
+      finalPosCell.className = 'col-pos final-pos-cell';
+      finalPosCell.textContent = rowData.place != null ? rowData.place : '—';
+      tr.appendChild(finalPosCell);
 
       const removeCell = document.createElement('td');
       const removeBtn = document.createElement('button');
@@ -217,8 +218,10 @@
         const playerInput = tr.querySelector('input[type="text"]');
         const scoreInputs = tr.querySelectorAll('input[type="number"]');
         const scores = Array.from(scoreInputs).map((inp) => {
+          const raw = inp.value.trim();
+          if (raw === '') return '';
           const v = parseFloat(inp.value);
-          return Number.isNaN(v) ? 0 : v;
+          return Number.isNaN(v) ? '' : v;
         });
         rows.push({
           player: (playerInput && playerInput.value) || '',
@@ -228,12 +231,14 @@
       return { rows };
     }
 
-    function rankByScore(values) {
-      const order = values.map((v, i) => ({ i, v })).sort((a, b) => b.v - a.v);
+    function rankByScore(values, lowerIsBetter) {
+      const order = values.map((v, i) => ({ i, v })).sort((a, b) =>
+        lowerIsBetter ? a.v - b.v : b.v - a.v
+      );
       const ranks = new Array(values.length);
       let rank = 1;
       for (let j = 0; j < order.length; j++) {
-        if (j > 0 && order[j].v < order[j - 1].v) rank = j + 1;
+        if (j > 0 && order[j].v !== order[j - 1].v) rank = j + 1;
         ranks[order[j].i] = rank;
       }
       return ranks;
@@ -242,8 +247,11 @@
     function computePositions(rows) {
       const enriched = rows.map((r, i) => ({ ...r, positions: [], total: 0, originalIndex: i }));
       for (let g = 0; g < GAME_COUNT; g++) {
-        const scores = enriched.map((row) => row.scores[g] ?? 0);
-        const ranks = rankByScore(scores);
+        const scores = enriched.map((row) => {
+          const s = row.scores[g];
+          return (s === '' || s === undefined || s === null) ? 0 : Number(s);
+        });
+        const ranks = rankByScore(scores, LOWER_IS_BETTER[g]);
         enriched.forEach((row, i) => { row.positions[g] = ranks[i]; });
       }
       enriched.forEach((row) => {
@@ -279,6 +287,8 @@
         });
         const totalCell = tr.querySelector('.total-cell');
         if (totalCell) totalCell.textContent = row.total;
+        const finalPosCell = tr.querySelector('.final-pos-cell');
+        if (finalPosCell) finalPosCell.textContent = row.place;
       });
     }
 
@@ -300,7 +310,7 @@
 
     function addRow() {
       const state = collectState();
-      state.rows.push({ player: '', scores: [0, 0, 0, 0] });
+      state.rows.push({ player: '', scores: ['', '', '', ''] });
       saveState(state);
       render(state);
     }
@@ -311,7 +321,7 @@
       if (index < 0) return;
       const state = collectState();
       state.rows.splice(index, 1);
-      if (state.rows.length === 0) state.rows = [{ player: '', scores: [0, 0, 0, 0] }];
+      if (state.rows.length === 0) state.rows = [{ player: '', scores: ['', '', '', ''] }];
       saveState(state);
       render(state);
     }
